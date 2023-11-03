@@ -1,0 +1,117 @@
+import psycopg2
+import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Configuración del consumidor para el proceso de aprobación
+config = {
+    'bootstrap.servers': 'localhost:9092',
+    'group.id': 'grupo-aprobacion',
+    'auto.offset.reset': 'earliest'
+}
+consumidor_aprobacion = Consumer(config)
+
+# Tópico de Kafka para las inscripciones
+tópico_inscripcion = 'formulario-inscripcion'
+tópico_pago = 'formulario-inscripcion-paid'  # Tópico para formularios pagados
+
+# Suscribir al tópico de inscripciones y al tópico de formularios pagados
+consumidor_aprobacion.subscribe([tópico_inscripcion, tópico_pago])
+
+# Función para enviar correo electrónico
+def enviar_correo(destinatario, formulario):
+    # Configura los datos del servidor de correo electrónico
+    servidor_smtp = 'smtp.gmail.com'  # Cambia a la dirección del servidor SMTP
+    puerto_smtp = 587  # Cambia al puerto SMTP adecuado
+    usuario = 'matias.guzman.g.2001@gmail.com'  # Cambia al correo electrónico desde el que enviarás
+    contraseña = 'ywek iwdp qsmz tbzd'  # Cambia a tu contraseña
+
+    # Crea un mensaje de correo electrónico
+    mensaje = MIMEMultipart()
+    mensaje['From'] = usuario
+    mensaje['To'] = destinatario
+    mensaje['Subject'] = 'Credenciales para MAMOCHI'
+
+    # Contenido del correo
+    mensaje_texto = f'''
+    Hola {formulario['nombre']} {formulario['apellido']},
+
+    Gracias por tu inscripción en MAMOCHI. Aquí están tus credenciales de acceso:
+
+    Usuario: {formulario['usuario']}
+    Contraseña: {formulario['contraseña']}
+
+    Utiliza estas credenciales para acceder a tu cuenta y hacer valer tus beneficios.
+
+    ¡Bienvenido a MAMOCHI!
+
+    Atentamente,
+    El equipo de MAMOCHI
+    '''
+    mensaje.attach(MIMEText(mensaje_texto, 'plain'))
+
+    # Conéctate al servidor de correo y envía el mensaje
+    try:
+        servidor = smtplib.SMTP(servidor_smtp, puerto_smtp)
+        servidor.starttls()
+        servidor.login(usuario, contraseña)
+        servidor.sendmail(usuario, destinatario, mensaje.as_string())
+        servidor.quit()
+        print('Correo electrónico enviado con éxito')
+    except Exception as e:
+        print('Error al enviar el correo electrónico:', str(e))
+
+# Función para insertar los datos en la tabla de usuarios
+def insertar_usuario(datos_formulario):
+    cursor = conexion.cursor()
+    try:
+        # Construir la consulta SQL para la inserción
+        consulta = """INSERT INTO usuarios (nombre, apellido, correo, usuario, contraseña)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING correo"""  # Agrega RETURNING para obtener el correo del usuario
+        # Extraer los datos del formulario
+        nombre = datos_formulario['nombre']
+        apellido = datos_formulario['apellido']
+        correo = datos_formulario['correo']
+        usuario = datos_formulario['usuario']
+        contraseña = datos_formulario['contraseña']
+        # Ejecutar la consulta SQL
+        cursor.execute(consulta, (nombre, apellido, correo, usuario, contraseña))
+        correo_del_usuario = cursor.fetchone()[0]  # Obtener el correo del usuario
+        # Confirmar la inserción en la base de datos
+        conexion.commit()
+        print("Inserción de usuario exitosa.")
+        # Llamar a la función para enviar el correo electrónico
+        enviar_correo(correo_del_usuario, datos_formulario)
+    except (Exception, psycopg2.Error) as error:
+        print("Error al insertar el usuario en la base de datos:", error)
+    finally:
+        # Cerrar el cursor
+        cursor.close()
+
+# Escuchar y gestionar las inscripciones
+while True:
+    mensaje = consumidor_aprobacion.poll(1.0)
+    if mensaje is None:
+        continue
+    if mensaje.error():
+        if mensaje.error().code() == KafkaError._PARTITION_EOF:
+            print('Fin de la partición, continuando...')
+        else:
+            print('Error en el mensaje: {}'.format(mensaje.error()))
+    else:
+        # Verificar desde qué tópico proviene el mensaje
+        tópico = mensaje.topic()
+        datos_inscripcion = json.loads(mensaje.value())  # Decodificar los datos JSON
+
+        if tópico == tópico_inscripcion:
+            # Gestionar la inscripción estándar
+            print('Inscripción aprobada (estándar): {}'.format(datos_inscripcion))
+            # Llamar a la función para insertar los datos en la base de datos y enviar correo
+            insertar_usuario(datos_inscripcion)
+        elif tópico == tópico_pago:
+            # Gestionar la inscripción pagada
+            print('Inscripción aprobada (pagada): {}'.format(datos_inscripcion))
+            # Llamar a la función para insertar los datos en la base de datos y enviar correo
+            insertar_usuario(datos_inscripcion)

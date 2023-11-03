@@ -1,0 +1,30 @@
+from kafka import KafkaConsumer
+import json
+
+# Variables para el stock del carrito
+stock_carrito = 0
+
+# Configura el consumidor Kafka
+consumer = KafkaConsumer(
+    'gestion-ingredientes',  # Nombre del tópico a consumir
+    bootstrap_servers='localhost:9092',
+    value_deserializer=lambda v: json.loads(v.decode('utf-8'))
+)
+
+# Función para coordinar la reposición de stock
+def coordinar_reposicion(mensaje):
+    global stock_carrito  # Acceder a la variable de stock_carrito
+    maestro_id = mensaje['maestro_id']
+    stock_agotado = mensaje['stock_agotado']
+
+    if stock_agotado:
+        # Ejemplo: Aumentar el stock del carrito inmediatamente
+        stock_carrito += 1
+        print(f"Reposición de stock coordinada para el Maestro {maestro_id}. Stock del carrito aumentado a {stock_carrito}")
+    else:
+        print("Stock Completo.")
+# Consumir mensajes y coordinar la reposición de stock
+for mensaje in consumer:
+    mensaje_data = mensaje.value
+    coordinar_reposicion(mensaje_data)
+

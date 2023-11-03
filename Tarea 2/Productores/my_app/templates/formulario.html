@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Formulario de Notificación de Falta de Stock</title>
+</head>
+<body>
+    <h1>Notificar Falta de Stock</h1>
+    <form method="POST" action="/">
+        <label for="maestro_id">ID del Maestro:</label>
+        <input type="text" name="maestro_id" required><br><br>
+
+        <label for="stock_agotado">¿El stock está agotado?</label>
+        <input type="radio" name="stock_agotado" value="si" required> Sí
+        <input type="radio" name="stock_agotado" value="no" required> No<br><br>
+
+        <input type="submit" value="Enviar Notificación">
+    </form>
+</body>
+</html>

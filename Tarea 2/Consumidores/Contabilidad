@@ -1,0 +1,84 @@
+from confluent_kafka import Consumer, KafkaError
+
+# Configuración del consumidor para la contabilidad
+config = {
+    'bootstrap.servers': 'localhost:9092',
+    'group.id': 'grupo-contabilidad',
+    'auto.offset.reset': 'earliest'
+}
+consumidor_contabilidad = Consumer(config)
+
+# Tópico de Kafka para el recuento de ventas
+tópico_recuento_ventas = 'recuento-ventas'
+
+# Suscribir al tópico de recuento de ventas
+consumidor_contabilidad.subscribe([tópico_recuento_ventas])
+
+# Variables para realizar el recuento de ventas semanales
+ventas_semana = 0
+ganancias_semana = 0
+
+# Función para enviar estadísticas por correo al finalizar la semana
+def enviar_estadisticas_por_correo(ventas, ganancias):
+    # Aquí debes implementar la lógica para enviar un correo con las estadísticas
+    # Utiliza una biblioteca de envío de correos como smtplib o cualquier otra de tu elección
+    # Aquí hay un ejemplo simple con smtplib:
+    
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    # Configura los detalles del servidor de correo
+    smtp_server = 'smtp.example.com'
+    smtp_port = 587
+    smtp_username = 'tu_correo@example.com'
+    smtp_password = 'tu_contraseña'
+
+    # Crea el mensaje de correo
+    mensaje = MIMEMultipart()
+    mensaje['From'] = smtp_username
+    mensaje['To'] = 'destinatario@example.com'
+    mensaje['Subject'] = 'Estadísticas Semanales de Ventas'
+
+    cuerpo = f'Esta semana se realizaron {ventas} ventas con ganancias de {ganancias} USD.'
+    mensaje.attach(MIMEText(cuerpo, 'plain'))
+
+    # Conecta al servidor de correo y envía el mensaje
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.starttls()
+    server.login(smtp_username, smtp_password)
+    server.sendmail(smtp_username, 'destinatario@example.com', mensaje.as_string())
+    server.quit()
+
+    print('Estadísticas semanales enviadas por correo.')
+
+# Función ficticia para determinar si es el final de la semana
+def es_el_final_de_la_semana():
+    # Aquí puedes implementar la lógica para verificar si es el final de la semana.
+    # Esto dependerá de cómo defines tu período de contabilidad semanal.
+
+    # En este ejemplo, consideramos el final de la semana si hay más de 100 ventas
+    return ventas_semana > 100
+
+# Escuchar y realizar el recuento de ventas
+while True:
+    mensaje = consumidor_contabilidad.poll(1.0)
+    if mensaje is None:
+        continue
+    if mensaje.error():
+        if mensaje.error().code() == KafkaError._PARTITION_EOF:
+            print('Fin de la partición, continuando...')
+        else:
+            print('Error en el mensaje: {}'.format(mensaje.error()))
+    else:
+        # Realizar el recuento de ventas
+        datos_venta = mensaje.value()
+        ventas_semana += datos_venta['cantidad']
+        ganancias_semana += datos_venta['ganancias']
+        print('Venta registrada: {}'.format(datos_venta))
+        
+        # Al finalizar la semana (ajusta la lógica según tus necesidades)
+        if es_el_final_de_la_semana():
+            enviar_estadisticas_por_correo(ventas_semana, ganancias_semana)
+            ventas_semana = 0
+            ganancias_semana = 0

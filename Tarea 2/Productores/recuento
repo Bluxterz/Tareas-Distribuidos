@@ -1,0 +1,29 @@
+from confluent_kafka import Producer
+
+# Configuración del productor de Kafka para recuento de ventas
+config = {
+    'bootstrap.servers': 'localhost:9092',
+    'client.id': 'productor-recuento-ventas'
+}
+productor_recuento_ventas = Producer(config)
+
+# Tópico de Kafka para el recuento de ventas
+tópico_recuento_ventas = 'recuento-ventas'
+
+# Función para registrar una venta y enviar un mensaje a Kafka
+def registrar_venta(maestro, cantidad, ganancias):
+    mensaje = {
+        'maestro': maestro,
+        'cantidad': cantidad,
+        'ganancias': ganancias
+    }
+    productor_recuento_ventas.produce(tópico_recuento_ventas, key=None, value=mensaje)
+
+# Ejemplo de registro de una venta
+maestro = 'Juan'
+cantidad_vendida = 10
+ganancias = 100.0
+registrar_venta(maestro, cantidad_vendida, ganancias)
+
+# Espera a que todos los mensajes se envíen (puedes personalizar este tiempo)
+productor_recuento_ventas.flush()
