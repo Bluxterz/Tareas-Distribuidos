@@ -1,8 +1,32 @@
-import psycopg2
+from confluent_kafka import Consumer, KafkaError
 import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import mysql.connector
+
+
+# Conectar a la base de datos MySQL
+conn = mysql.connector.connect(
+    host='localhost',  
+    user='root',  
+    password='120119',  
+    database='tarea2distribuidos'  
+)
+
+# Crear una tabla para almacenar las inscripciones si no existe
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS inscripciones (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(255),
+        apellido VARCHAR(255),
+        usuario VARCHAR(255),
+        contraseña VARCHAR(255),
+        correo VARCHAR(255)
+    )
+''')
+conn.commit()
 
 # Configuración del consumidor para el proceso de aprobación
 config = {
@@ -14,20 +38,22 @@ consumidor_aprobacion = Consumer(config)
 
 # Tópico de Kafka para las inscripciones
 tópico_inscripcion = 'formulario-inscripcion'
-tópico_pago = 'formulario-inscripcion-paid'  # Tópico para formularios pagados
+tópico_pago = 'formulario-inscripcion-paid'  
 
 # Suscribir al tópico de inscripciones y al tópico de formularios pagados
 consumidor_aprobacion.subscribe([tópico_inscripcion, tópico_pago])
 
-# Función para enviar correo electrónico
-def enviar_correo(destinatario, formulario):
+# Función para enviar correo electrónico cuando se aprueba una inscripción
+def enviar_correo_aprobacion(formulario):
     # Configura los datos del servidor de correo electrónico
-    servidor_smtp = 'smtp.gmail.com'  # Cambia a la dirección del servidor SMTP
-    puerto_smtp = 587  # Cambia al puerto SMTP adecuado
-    usuario = 'matias.guzman.g.2001@gmail.com'  # Cambia al correo electrónico desde el que enviarás
-    contraseña = 'ywek iwdp qsmz tbzd'  # Cambia a tu contraseña
+    servidor_smtp = 'smtp.gmail.com'  
+    puerto_smtp = 587  
+    usuario = 'matias.guzman.g.2001@gmail.com'  
+    contraseña = 'ywek iwdp qsmz tbzd' 
 
-    # Crea un mensaje de correo electrónico
+    destinatario = formulario['correo']  #
+
+    
     mensaje = MIMEMultipart()
     mensaje['From'] = usuario
     mensaje['To'] = destinatario
@@ -62,35 +88,7 @@ def enviar_correo(destinatario, formulario):
     except Exception as e:
         print('Error al enviar el correo electrónico:', str(e))
 
-# Función para insertar los datos en la tabla de usuarios
-def insertar_usuario(datos_formulario):
-    cursor = conexion.cursor()
-    try:
-        # Construir la consulta SQL para la inserción
-        consulta = """INSERT INTO usuarios (nombre, apellido, correo, usuario, contraseña)
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING correo"""  # Agrega RETURNING para obtener el correo del usuario
-        # Extraer los datos del formulario
-        nombre = datos_formulario['nombre']
-        apellido = datos_formulario['apellido']
-        correo = datos_formulario['correo']
-        usuario = datos_formulario['usuario']
-        contraseña = datos_formulario['contraseña']
-        # Ejecutar la consulta SQL
-        cursor.execute(consulta, (nombre, apellido, correo, usuario, contraseña))
-        correo_del_usuario = cursor.fetchone()[0]  # Obtener el correo del usuario
-        # Confirmar la inserción en la base de datos
-        conexion.commit()
-        print("Inserción de usuario exitosa.")
-        # Llamar a la función para enviar el correo electrónico
-        enviar_correo(correo_del_usuario, datos_formulario)
-    except (Exception, psycopg2.Error) as error:
-        print("Error al insertar el usuario en la base de datos:", error)
-    finally:
-        # Cerrar el cursor
-        cursor.close()
 
-# Escuchar y gestionar las inscripciones
 while True:
     mensaje = consumidor_aprobacion.poll(1.0)
     if mensaje is None:
@@ -104,14 +102,20 @@ while True:
         # Verificar desde qué tópico proviene el mensaje
         tópico = mensaje.topic()
         datos_inscripcion = json.loads(mensaje.value())  # Decodificar los datos JSON
-
+        
         if tópico == tópico_inscripcion:
             # Gestionar la inscripción estándar
             print('Inscripción aprobada (estándar): {}'.format(datos_inscripcion))
-            # Llamar a la función para insertar los datos en la base de datos y enviar correo
-            insertar_usuario(datos_inscripcion)
-        elif tópico == tópico_pago:
-            # Gestionar la inscripción pagada
-            print('Inscripción aprobada (pagada): {}'.format(datos_inscripcion))
-            # Llamar a la función para insertar los datos en la base de datos y enviar correo
-            insertar_usuario(datos_inscripcion)
+            # Llamar a la función para enviar correo electrónico
+            enviar_correo_aprobacion(datos_inscripcion)
+
+            # Insertar los datos en la base de datos
+            cursor.execute('''
+                INSERT INTO inscripciones (nombre, apellido, usuario, contraseña, correo)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (datos_inscripcion['nombre'], datos_inscripcion['apellido'], datos_inscripcion['usuario'], datos_inscripcion['contraseña'], datos_inscripcion['correo']))
+            conn.commit()
+
+# Cerrar la conexión a la base de datos al final del programa
+cursor.close()
+conn.close()

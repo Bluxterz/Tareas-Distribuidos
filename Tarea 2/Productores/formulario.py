@@ -22,8 +22,13 @@ def enviar_formulario_inscripcion(formulario, es_pagado=False):
     datos_formulario = json.dumps(formulario)
     
     # Envía el formulario al tópico correspondiente
-    # Key es None para distribución aleatoria de mensajes
-    productor.produce(tópico_inscripcion, key=None, value=datos_formulario, callback=delivery_report)
+    productor.produce(
+        topic=tópico_inscripcion,
+        key=None,
+        value=datos_formulario,
+
+        callback=delivery_report
+    )
 
 # Función de entrega de mensaje para monitoreo
 def delivery_report(err, msg):
