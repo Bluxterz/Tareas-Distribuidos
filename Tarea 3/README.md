@@ -74,13 +74,13 @@ Con eso ya deberían de tener un seguimiento de los arhicovs traspasados al dire
 
 **[4]** Se ejecutan tanto mapper y reducer puesto que hadoop trabaja con ambas.
 ```sh
-mapred streaming -files mapper.py,reducer.py -input /user/hduser/input/*.txt -output hduser/outhadoop/ -mapper ./mapper.py -reducer ./reducer.py
+mapred streaming -files mapper.py,reducer.py -input /user/hduser/input/*.txt -output hduser/outhadoop2/ -mapper ./mapper.py -reducer ./reducer.py
 ```
 Luego el archivo lo exportamos al entorno local en linux dentro del contenedor y en este caso dentro del directorio examples. Allí quedará una carpeta de nombre output con un contador de palabras por archivo y en este caso sería uno general para todos los datos volcados tanto en la *carpeta1* como en la *carpeta2*. 
 
 Es aquí donde entra el uso del volumen para así extraer de forma efectiva el archivo ya procesado, por hadoop.
 ```sh
-hdfs dfs -get /user/hduser/hduser/outhadoop/ /home/hduser/examples
+hdfs dfs -get /user/hduser/hduser/outhadoop2/ /home/hduser/examples
 ```
 
 Con lo anterior ya estarían listos con la respectiva aplicación (revisen la carpeta outputdoop y fijense en el archivo part-00000). \

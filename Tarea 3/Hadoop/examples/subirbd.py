@@ -4,9 +4,9 @@ import mysql.connector
 def mysql_connect():
     try:
         connection = mysql.connector.connect(
-            host='localhost',
+            host='mysql',
             user='root',
-            password='120119',
+            password='db',
             database='tarea3'
         )
         return connection
@@ -38,5 +38,5 @@ def load_json_to_mysql(json_file_path):
             connection.close()
 
 if __name__ == "__main__":
-    json_file_path = "/home/bluxterz/Desktop/Tarea 3/Hadoop/examples/database/db.json"
+    json_file_path = "./database/db.json"
     load_json_to_mysql(json_file_path)
